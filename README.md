@@ -1,6 +1,6 @@
 # mission-file-parser
 Practise project for learning to parse files with python
 Goals:
-1) Read a file. Store mission objects in a dictionary. Write new file from dictionary
-2) Make changes in existing dictionary items
-3) Add mission objects
+1) Read a file. Store mission objects in a data structure
+2) Make (random) changes, move blocks, replace objects etc. Write to new mission file
+3) Create mission from the ground up based on object templates, create & maintain keys
