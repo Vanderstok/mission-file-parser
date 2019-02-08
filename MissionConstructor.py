@@ -3,8 +3,9 @@
 import random
 import subprocess
 import configparser
+from math import sqrt, sin, cos, radians
 
-def GenerateMission(mission_name):
+def GenerateMission(mission_name, date):
 
   class Point: #     Point object represents and manipulates x,y,z coords.
       def __init__(self,x=0,y=0,z=0):
@@ -35,6 +36,12 @@ def GenerateMission(mission_name):
 
       def __abs__(self):
           return Point(abs(self.x), abs(self.y), abs(self.z))
+      
+      def rotate(self, alpha):
+        x_new = self.x * cos(alpha) - self.z * sin(alpha)
+        z_new = self.x * sin(alpha) + self.z * cos(alpha)
+        self.x = x_new
+        self.z = z_new
 
       def norm(self):
           return Point(abs(self.x)/self.x, abs(self.y)/self.y, abs(self.z)/self.z)
@@ -85,9 +92,19 @@ def GenerateMission(mission_name):
         self.x += v.x
         self.y += v.y
         self.z += v.z
-        self.rx = (self.rx + v.rx)%360
-        self.ry = (self.ry + v.ry)%360
-        self.rz = (self.rz + v.rz)%360
+        return self
+
+      def rotate(self, p): # rotate block around vector p with angle alpha
+        alpha = p.ry
+        r_alpha = radians(p.ry)
+        x_0 = self.x - p.x
+        z_0 = self.z - p.z
+        x_1 = x_0 * cos(r_alpha) - z_0 * sin(r_alpha)
+        z_1 = x_0 * sin(r_alpha) + z_0 * cos(r_alpha)
+        self.x = self.x - (x_0 - x_1)
+        self.z = self.z + z_1 - z_0
+        self.ry = (self.ry + alpha)%360
+
         return self
 
   class Vector: #     Vector used for transforming blocks
@@ -103,7 +120,7 @@ def GenerateMission(mission_name):
         return Vector(self.x + p.x, self.y + p.y, self.z + p.z, (self.rx + p.rx)%360, (self.ry + p.ry)%360, (self.rz + p.rz)%360 )
 
       def __sub__(self, p):
-        return self + (-p)
+        return Vector(self.x - p.x, self.y - p.y, self.z - p.z, (self.rx - p.rx)%360, (self.ry - p.ry)%360, (self.rz - p.rz)%360 )
 
       def __str__(self):
         return "({0}, {1}, {2}, {3}, {4}, {5})".format(self.x, self.y, self.z, self.rx, self.ry, self.rz)
@@ -172,6 +189,71 @@ def GenerateMission(mission_name):
               open = (open + 1) if match[index] == '{' else (open - 1)
           if not open:
               return name+"\n{"+match[:index]+"}\n\n"
+
+    # Function to return Vector based on object name in group s and starting at st
+  def find_coords( s, name, st=0 ):
+      P =Vector()
+      P.x = float(find_substr( s, "XPos = ", ";", s.find(name)))
+      P.y = float(find_substr( s, "YPos = ", ";", s.find(name)))
+      P.z = float(find_substr( s, "ZPos = ", ";", s.find(name)))
+      P.rx = float(find_substr( s, "XOri = ", ";", s.find(name)))
+      P.ry = float(find_substr( s, "YOri = ", ";", s.find(name)))
+      P.rz = float(find_substr( s, "ZOri = ", ";", s.find(name)))
+      return P
+  
+  # Function that finds all blocks in a group and puts them in a list of blocks
+  def group2block(s):
+    block = []
+    if s.count("{")>1:
+      start = s.find("{") + 1 # find location of first { in group
+      for k in range(s.count("Index = ", s.find("Index = ")+1)):
+        a = s.find("{", start) # find location of first { in block
+        b = s.rfind("\n", 1, a-1) # find start of line with {
+        c = s.rfind("\n", 1, b) # find start of line of block
+        x = 1
+        for i, ch in enumerate (s[a+1:len(s)]): # iterate through string from a+1
+          if ch=="{":
+            x += 1
+          elif ch=="}":
+            x += -1
+          if x==0:
+            break
+        block.append(s[c+1:a+i+3]+"\n")
+        s = s[a+i+3:len(s)]
+      return block
+
+# Function to move_group( group, vector ) vector contains destination location and heading
+  def move_group(group, D):
+    name = find_substr( group, "Name = ", ";" )
+    index = find_substr( group, "Index = ", ";" )
+    desc = find_substr( group, "Desc = ", ";" )
+    block_list = group2block(group) 
+    block_group=[]
+    for s in block_list:
+      block_group.append(Block(s))
+
+    # Determine rotation vector based on center point of group 
+    x_min = min([(i.x) for i in block_group])
+    y_min = min([(i.y) for i in block_group])
+    z_min = min([(i.z) for i in block_group])
+    x_max = max([(i.x) for i in block_group])
+    y_max = max([(i.y) for i in block_group])
+    z_max = max([(i.z) for i in block_group])
+    x_c = x_min + (x_max - x_min)/2
+    y_c = y_min + (y_max - y_min)/2
+    z_c = z_min + (z_max - z_min)/2
+    R = Vector(x_c, y_c, z_c, 0,0,0)
+    R.ry = D.ry
+    T = D - R 
+
+    #iterate through all block objects and move them
+    moved_group = ""
+    for b in block_group:
+      b.rotate(R)
+      b.translate(T)
+      moved_group += str(b)
+    moved_group = "Group\n{\n  Name = "+name+";\n  Index = "+index+";\n  Desc = "+desc+";\n" + moved_group + "}\n\n"
+    return moved_group
 
   #Function to find a substring between s1 and s2, starting at st (optional)
   def find_substr( s, s1, s2, st=0 ):
@@ -309,6 +391,7 @@ def GenerateMission(mission_name):
   mission_red_flight = {}
   mission_patrols = {}
   mission_icons = ""
+  mission_AAA = {}
 
   # Read files
   with open(coop_path + "CoopTemplate_1.Mission", 'r') as file :
@@ -325,22 +408,21 @@ def GenerateMission(mission_name):
   hours = "{:02d}".format(random.randint(8, 16))
   minutes = "{:02d}".format(random.randint(0,59))
   time_new = hours + ":" + minutes
-  month_new = str(random.randint(10,11))
-  date_new = str(random.randint(1, 30)) + "." + month_new + ".1942" # specific for Stalingrad summer 42
+  date_new = date
   cloud_prefix = ["00_clear_0","01_Light_0","02_Medium_0","03_Heavy_0","04_Overcast_0"] # note clear; no capital
-  cloud_type = random.randint(0,4)
+  cloud_type = random.choice([0,1,1,1,2,2,2,3,3,4])
   cloud_desc = ["Clear","Few","Scattered","Broken","Overcast"][cloud_type]
   clouds_new = season+"\\" + cloud_prefix[cloud_type] + str(random.randint(0,9))
   if (cloud_type == 4) & (random.randint(0,9)>4):
     prectype = 1
-    preclevel = random.randint(0,10)
+    preclevel = random.randint(1,10)
   else:
     prectype = 0
     preclevel = 0
   if cloud_type in [3,4]:
     cloud_level = random.randint(900,1600)
   else:
-    cloud_level = random.randint(1000,2500)
+    cloud_level = random.randint(900,2500)
   cloud_height = random.randint(250,1000)
   temp = random.randint(5, 18)
   wind_speed = random.randint(0,8)
@@ -361,18 +443,16 @@ def GenerateMission(mission_name):
   # Choose Map/Lines & Situation
   # 
 
-  mission_lines = find_group(mission_template, "Lines_"+month_new)
+  mission_lines = find_group(mission_template, "Lines_"+ date_new[3:5])
 
   #
   # Choose Operations area
   #
 
   #
-  # Read Active objects and populate in operations are
+  # Populate random objects in operations area
   #
 
-  mission_AAA_axis = create_simple_sites(mission_template, "AAA_Axis", "flak_axis_", "AAA_axis_")
-  mission_AAA_allied = create_simple_sites(mission_template, "AAA_Allied", "flak_allied_", "AAA_allied_")
   mission_smoke = create_simple_sites(mission_template, "Smoke", "smoke_", "smoke_pos_")
   transport_groups = find_group(mission_template, "Transports")
   transports = random.sample(range(transport_groups.count("transport_")),10)
@@ -386,7 +466,9 @@ def GenerateMission(mission_name):
 
   mission_static = find_group(mission_template, "Static")
   mission_logic = find_group(mission_template, "Logic")
-
+  mission_AAA_all = find_group(mission_template, "AAA")
+  helper_group = find_group(mission_template, "Helpers")
+  mission_AAA = ""
   #
   # For each side: 
   #
@@ -397,7 +479,7 @@ def GenerateMission(mission_name):
       objective_type = random.choice(list(objective_types_low.keys())) 
       payload_type = objective_types_low[objective_type]
     else:
-      if random.randint(1,10)>5:
+      if random.randint(1,10)>4:
         objective_type = random.choice(list(objective_types_high.keys()))
         payload_type = objective_types_high[objective_type]
       else:
@@ -475,7 +557,7 @@ def GenerateMission(mission_name):
         icon_id = 903
       elif i == 3:
         labels = replace_substr( labels, "\n" + lcname+":", "\n", "Attack") # write icon name
-        labels = replace_substr( labels, "\n" + lcdesc+":", "\n", "Destroy the Primary Target") # write icon name
+        labels = replace_substr( labels, "\n" + lcdesc+":", "\n", "Destroy the " + objective_type) # write icon name
         icon_id = 902
       else:
         labels = replace_substr( labels, "\n" + lcname+":", "\n", "WP "+str(i)) # write icon name
@@ -500,6 +582,16 @@ def GenerateMission(mission_name):
       mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "XPos = ", ";", "{0:.3f}".format(wp_3.x), mission_blue_flight[side].find(mcu))
       mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "YPos = ", ";", "{0:.3f}".format(wp_3.y), mission_blue_flight[side].find(mcu))
       mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "ZPos = ", ";", "{0:.3f}".format(wp_3.z), mission_blue_flight[side].find(mcu))
+    
+    # Move AAA sites to random locations
+    nf = mission_AAA_all.count("flak_"+side+"_") # number of object groups
+    np = helper_group.count("AAA_"+side+"_") # number of possible locations
+    lst = random_set(1,np,nf)
+    for i, site in enumerate(lst):
+      mission_object_site = find_group(mission_AAA_all, "flak_"+side+"_"+str(i+1))
+      D = find_coords(helper_group, "AAA_"+side+"_"+str(site) )
+      new_group = move_group(mission_object_site, D)
+      mission_AAA += new_group
 
   '''
     mission_options = replace_substr(mission_options, "WorldObjects\\Planes\\", ".txt" , plane_new)
@@ -515,8 +607,7 @@ def GenerateMission(mission_name):
     mission_red_flight["axis"] +
     mission_patrols["allied"] +
     mission_patrols["axis"] +
-    mission_AAA_axis +
-    mission_AAA_allied +
+    mission_AAA +
     mission_objective["allied"] +
     mission_objective["axis"] +
     mission_transports +
@@ -558,12 +649,19 @@ def GenerateMission(mission_name):
   with open(mission_path + mission_name + '.mission', 'w') as file:
     file.write(mission)
 
+  
+  # Write the description file. Desc files need UTF-16 encoding. .
+  with open(mission_path + mission_name + '.eng', 'w', encoding='utf_16') as file:
+    file.write(labels)
+
   # Convert to msbin file
-  #subprocess.call([resaver_path+"MissionResaver.exe", "-d", data_path, "-f", mission_path + mission_name + ".mission" ])
+  subprocess.call([resaver_path+"MissionResaver.exe", "-d", data_path, "-f", mission_path + mission_name + ".mission" ])
 
   # Write the description file. Desc files need UTF-16 encoding. Note: resaver seems to destroy desc files (workaround).
-  with open(mission_path + mission_name + '.eng', 'w', encoding='UTF-16') as file:
+  with open(mission_path + mission_name + '.eng', 'w', encoding='utf_16') as file:
     file.write(labels)
+
+  '''
   with open(mission_path + mission_name + '.fra', 'w', encoding='UTF-16') as file:
     file.write(labels)
   with open(mission_path + mission_name + '.ger', 'w', encoding='UTF-16') as file:
@@ -574,9 +672,13 @@ def GenerateMission(mission_name):
     file.write(labels)
   with open(mission_path + mission_name + '.spa', 'w', encoding='UTF-16') as file:
     file.write(labels)
+  '''
+
 
 #
 # Main
 #
 
-GenerateMission("CoopStalingrad_01")
+month = "%02d" % random.randint(9,11)
+date = "%02d" % random.randint(1, 30) + "." + month + ".1942"
+GenerateMission("CoopStalingrad_01", date)
