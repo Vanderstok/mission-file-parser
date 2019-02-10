@@ -7,26 +7,29 @@ from math import sqrt, sin, cos, radians
 
 def GenerateMission(mission_name, date):
 
-  class Point: #     Point object represents and manipulates x,y,z coords.
-      def __init__(self,x=0,y=0,z=0):
+  class Point: #     Point object represents and manipulates x,y,z coords. Also has heading
+      def __init__(self, x=0, y=0, z=0, rx=0, ry=0, rz=0):
           self.x = x
           self.y = y
           self.z = z
+          self.rx = rx
+          self.ry = ry
+          self.rz = rz
 
       def __str__(self):
-          return "({0}, {1}, {2})".format(self.x, self.y, self.z)
+          return "({0}, {1}, {2}, {3}, {4}, {5})".format(self.x, self.y, self.z, self.rx, self.ry, self.rz)
       
       def __eq__(self, other):
-          return self.y == other.y and self.x == other.x and self.z == other.z
+          return self.y == other.y and self.x == other.x and self.z == other.z and self.rx == other.rx and self.ry == other.ry and self.rz == other.rz
 
       def __neg__(self):
-          return Point(-self.x, -self.y, -self.z)
+          return Point(-self.x, -self.y, -self.z, -self.rx, -self.ry, -self.rz)
 
       def __add__(self, p):
-          return Point(self.x+p.x, self.y+p.y, self.z+p.z)
+          return Point(self.x + p.x, self.y + p.y, self.z + p.z, (self.rx + p.rx)%360, (self.ry + p.ry)%360, (self.rz + p.rz)%360 )
       
       def __sub__(self, p):
-          return self + (-p)
+          return Point(self.x - p.x, self.y - p.y, self.z - p.z, (self.rx - p.rx)%360, (self.ry - p.ry)%360, (self.rz - p.rz)%360 )
       
       def __mul__(self, p):
           return Point(self.x*p.x, self.y*p.y, self.z*p.z)
@@ -37,17 +40,18 @@ def GenerateMission(mission_name, date):
       def __abs__(self):
           return Point(abs(self.x), abs(self.y), abs(self.z))
       
-      def rotate(self, alpha):
+      def rotate(self, alpha):  # rotate around (0,0,0)
         x_new = self.x * cos(alpha) - self.z * sin(alpha)
         z_new = self.x * sin(alpha) + self.z * cos(alpha)
         self.x = x_new
         self.z = z_new
+        self.ry = (self.ry + alpha)%360
 
       def norm(self):
           return Point(abs(self.x)/self.x, abs(self.y)/self.y, abs(self.z)/self.z)
 
       def __repr__(self):
-          return "Point (%d, %d, %d)" % (self.x, self.y, self.z)
+          return "Point: (%d, %d, %d, %d, %d, %d)" % (self.x, self.y, self.z, self.rx, self.ry, self.rz)
 
   class Block: #     Block object represents a mission block
       def __init__(self, s):
@@ -66,10 +70,10 @@ def GenerateMission(mission_name, date):
         self.rz = find_value(self.s,"ZOri = " )
 
       def __add__(self, p):
-        return Vector(self.x + p.x, self.y + p.y, self.z + p.z, (self.rx + p.rx)%360, (self.ry + p.ry)%360, (self.rz + p.rz)%360 )
+        return Point(self.x + p.x, self.y + p.y, self.z + p.z, (self.rx + p.rx)%360, (self.ry + p.ry)%360, (self.rz + p.rz)%360 )
 
       def __sub__(self, p):
-        return Vector(self.x - p.x, self.y - p.y, self.z - p.z, (self.rx - p.rx)%360, (self.ry - p.ry)%360, (self.rz - p.rz)%360 )
+        return Point(self.x - p.x, self.y - p.y, self.z - p.z, (self.rx - p.rx)%360, (self.ry - p.ry)%360, (self.rz - p.rz)%360 )
 
       def __str__(self):
         def replace_value( s, s1, r, s2=";"):
@@ -94,7 +98,7 @@ def GenerateMission(mission_name, date):
         self.z += v.z
         return self
 
-      def rotate(self, p): # rotate block around vector p with angle alpha
+      def rotate(self, p): # rotate block around Point p with angle from p.ry
         alpha = p.ry
         r_alpha = radians(p.ry)
         x_0 = self.x - p.x
@@ -104,29 +108,7 @@ def GenerateMission(mission_name, date):
         self.x = self.x - (x_0 - x_1)
         self.z = self.z + z_1 - z_0
         self.ry = (self.ry + alpha)%360
-
         return self
-
-  class Vector: #     Vector used for transforming blocks
-      def __init__(self, x=0, y=0, z=0, rx=0, ry=0, rz=0):
-        self.x = x
-        self.y = y
-        self.z = z
-        self.rx = rx
-        self.ry = ry
-        self.rz = rz
-
-      def __add__(self, p):
-        return Vector(self.x + p.x, self.y + p.y, self.z + p.z, (self.rx + p.rx)%360, (self.ry + p.ry)%360, (self.rz + p.rz)%360 )
-
-      def __sub__(self, p):
-        return Vector(self.x - p.x, self.y - p.y, self.z - p.z, (self.rx - p.rx)%360, (self.ry - p.ry)%360, (self.rz - p.rz)%360 )
-
-      def __str__(self):
-        return "({0}, {1}, {2}, {3}, {4}, {5})".format(self.x, self.y, self.z, self.rx, self.ry, self.rz)
-  
-      def __repr__(self):
-        return "Vector: (%d, %d, %d, %d, %d, %d)" % (self.x, self.y, self.z, self.rx, self.ry, self.rz)
 
   class MCU_Icon: #   Icon class represents an Icon on the map
     def __init__(self, index, targets, icon_id, coals, x, z, lcname, lcdesc, ltype=14, color=[100,0,0]):
@@ -190,9 +172,9 @@ def GenerateMission(mission_name, date):
           if not open:
               return name+"\n{"+match[:index]+"}\n\n"
 
-    # Function to return Vector based on object name in group s and starting at st
-  def find_coords( s, name, st=0 ):
-      P =Vector()
+  # Function to return Point based on object name in group s and starting at st
+  def get_coords( s, name, st=0 ):
+      P =Point()
       P.x = float(find_substr( s, "XPos = ", ";", s.find(name)))
       P.y = float(find_substr( s, "YPos = ", ";", s.find(name)))
       P.z = float(find_substr( s, "ZPos = ", ";", s.find(name)))
@@ -200,7 +182,17 @@ def GenerateMission(mission_name, date):
       P.ry = float(find_substr( s, "YOri = ", ";", s.find(name)))
       P.rz = float(find_substr( s, "ZOri = ", ";", s.find(name)))
       return P
-  
+      
+  # Function to set coords of a MCU based on Point object
+  def set_coords( s, P, name):
+      s = replace_substr(s, "XPos = ", ";", "{0:.3f}".format(P.x), s.find(name))
+      s = replace_substr(s, "YPos = ", ";", "{0:.3f}".format(P.y), s.find(name))
+      s = replace_substr(s, "ZPos = ", ";", "{0:.3f}".format(P.z), s.find(name))
+      s = replace_substr(s, "XOri = ", ";", "{0:.3f}".format(P.rx), s.find(name))
+      s = replace_substr(s, "YOri = ", ";", "{0:.3f}".format(P.ry), s.find(name))
+      s = replace_substr(s, "ZOri = ", ";", "{0:.3f}".format(P.rz), s.find(name))
+      return s
+
   # Function that finds all blocks in a group and puts them in a list of blocks
   def group2block(s):
     block = []
@@ -222,8 +214,8 @@ def GenerateMission(mission_name, date):
         s = s[a+i+3:len(s)]
       return block
 
-# Function to move_group( group, vector ) vector contains destination location and heading
-  def move_group(group, D):
+  # Function to position group( group(string), dest Point (contains destination location and heading based on center of group)
+  def position_group(group, D ):
     name = find_substr( group, "Name = ", ";" )
     index = find_substr( group, "Index = ", ";" )
     desc = find_substr( group, "Desc = ", ";" )
@@ -232,7 +224,7 @@ def GenerateMission(mission_name, date):
     for s in block_list:
       block_group.append(Block(s))
 
-    # Determine rotation vector based on center point of group 
+    # Determine rotation Point based on center point of group 
     x_min = min([(i.x) for i in block_group])
     y_min = min([(i.y) for i in block_group])
     z_min = min([(i.z) for i in block_group])
@@ -242,19 +234,36 @@ def GenerateMission(mission_name, date):
     x_c = x_min + (x_max - x_min)/2
     y_c = y_min + (y_max - y_min)/2
     z_c = z_min + (z_max - z_min)/2
-    R = Vector(x_c, y_c, z_c, 0,0,0)
+    R = Point(x_c, y_c, z_c, 0,0,0)
     R.ry = D.ry
-    T = D - R 
 
     #iterate through all block objects and move them
     moved_group = ""
     for b in block_group:
       b.rotate(R)
-      b.translate(T)
+      b.translate(D - R)
       moved_group += str(b)
     moved_group = "Group\n{\n  Name = "+name+";\n  Index = "+index+";\n  Desc = "+desc+";\n" + moved_group + "}\n\n"
     return moved_group
 
+  # Function to move group( group, move_Point ) group = string, Point contains translation and heading change
+  def move_group(group, V ):
+    name = find_substr( group, "Name = ", ";" )
+    index = find_substr( group, "Index = ", ";" )
+    desc = find_substr( group, "Desc = ", ";" )
+    block_list = group2block(group) 
+    block_group=[]
+    for s in block_list:
+      block_group.append(Block(s))
+
+    #iterate through all block objects and move them
+    moved_group = ""
+    for b in block_group:
+      b.translate(V)
+      moved_group += str(b)
+    moved_group = "Group\n{\n  Name = "+name+";\n  Index = "+index+";\n  Desc = "+desc+";\n" + moved_group + "}\n\n"
+    return moved_group
+    
   #Function to find a substring between s1 and s2, starting at st (optional)
   def find_substr( s, s1, s2, st=0 ):
     x = (s.find(s1, st)+len(s1))
@@ -272,15 +281,6 @@ def GenerateMission(mission_name, date):
       st = b
     return s 
 
-  def random_set(x,y,n): #Get n random but unique numbers out range x:y
-    values=list(range(x,y+1)) # max-1
-    nums=[]
-    for m in range(1,n+1):
-      r1=random.randint(x-1,y-m)
-      nums.append(values[r1])
-      del values[r1]
-    return nums
-
   def create_AI_flight(template, group_name, flight_name, patrol_name, plane_set): # read AI fighters and change the plane type and the patrol areas
     mission_flight = find_group(template, group_name)
     nf = mission_flight.count(flight_name) # number of fighter flights
@@ -291,7 +291,7 @@ def GenerateMission(mission_name, date):
       mission_fighters = find_group(mission_flight, flight_name+str(i+1))
       fighter=plane_set[random.randint(0, len(plane_set)-1)] # choose a plane type
       mission_fighters = mission_fighters.replace(find_substr(mission_fighters, "WorldObjects\Planes\\", ".txt"), fighter) # replace plane
-      lst = random_set(1,np,2) # n=2 for two waypoints where fighters will cycle between
+      lst = random.sample(range(1,np+1),2) # n=2 for two waypoints where fighters will cycle between
       for n in range(len(lst)):
         x = (find_substr( helper_group, "XPos = ", ";", helper_group.find(patrol_name+str(lst[n]) )))
         y = str(int(float((find_substr( helper_group, "YPos = ", ";", helper_group.find(patrol_name+str(lst[n]) ))))) + random.randint(-1000,500))
@@ -308,7 +308,7 @@ def GenerateMission(mission_name, date):
     helper_group = find_group(template, "Helpers")
     np = helper_group.count(site_name) # number of possible locations
     object_site = ""
-    lst = random_set(1,np,nf)
+    lst = random.sample(range(1,np+1),nf)
     for i, site in enumerate(lst):
       mission_object_site = find_group(mission_site, object_name+str(i+1))
       x = (find_substr( helper_group, "XPos = ", ";", helper_group.find(site_name+str(site))))
@@ -409,6 +409,7 @@ def GenerateMission(mission_name, date):
   minutes = "{:02d}".format(random.randint(0,59))
   time_new = hours + ":" + minutes
   date_new = date
+  month = date_new[3:5]
   cloud_prefix = ["00_clear_0","01_Light_0","02_Medium_0","03_Heavy_0","04_Overcast_0"] # note clear; no capital
   cloud_type = random.choice([0,1,1,1,2,2,2,3,3,4])
   cloud_desc = ["Clear","Few","Scattered","Broken","Overcast"][cloud_type]
@@ -428,6 +429,9 @@ def GenerateMission(mission_name, date):
   wind_speed = random.randint(0,8)
   wind_dir = random.randint(90,179)
 
+  if month in ["10","11"]:
+    mission_options = mission_options.replace("LANDSCAPE_Stalin_s", "LANDSCAPE_Stalin_a")
+    mission_options = mission_options.replace("stalingrad-summer-1942", "stalingrad-autumn-1942")
   mission_options = replace_substr(mission_options, "SeasonPrefix = \"", "\";" , season[0:2])
   mission_options = replace_substr(mission_options, "Date = ", ";" , date_new)
   mission_options = replace_substr(mission_options, "Time = ", ";" , time_new + ":0")
@@ -443,7 +447,7 @@ def GenerateMission(mission_name, date):
   # Choose Map/Lines & Situation
   # 
 
-  mission_lines = find_group(mission_template, "Lines_"+ date_new[3:5])
+  mission_lines = find_group(mission_template, "Lines_"+ month)
 
   #
   # Choose Operations area
@@ -474,7 +478,7 @@ def GenerateMission(mission_name, date):
   #
 
   for side in ["allied", "axis"]:
-    # Determine objective type
+    # Determine objective type. Should be: ["allied", "axis"]
     if cloud_type == 4: # if overcast limit possibilities
       objective_type = random.choice(list(objective_types_low.keys())) 
       payload_type = objective_types_low[objective_type]
@@ -516,10 +520,36 @@ def GenerateMission(mission_name, date):
     mission_blue_flight[side] = mission_blue_flight[side].replace("PayloadId = 0", "PayloadId = " + payload_blue)
     mission_blue_flight[side] = mission_blue_flight[side].replace("WMMask = 1", "WMMask = " + mod)
 
+    # Move airfield
+    helpers_airfield = find_group(mission_template, "helpers_airfield_" + side + "_" + month)
+    T = get_coords( helpers_airfield, "wp_0")
+    C_blue = get_coords( mission_blue_flight[side], "wp_0" )
+    C_red = get_coords( mission_red_flight[side], "wp_0" )
+    mission_blue_flight[side] = move_group(mission_blue_flight[side], T-C_blue)
+    mission_red_flight[side] = move_group(mission_red_flight[side], T-C_red)
+
+    d_blue = 27 # distance between parked planes in m
+    d_red = 20
+    T = get_coords( helpers_airfield, "blue_flight")
+    for i in range(mission_blue_flight[side].count("WorldObjects\Planes\\")):
+      P = T + Point(-d_blue*i*sin(radians(T.ry)),0 , d_blue*i*cos(radians(T.ry)),0 ,0 ,0 )
+      mission_blue_flight[side] = set_coords(mission_blue_flight[side], P, "Blue "+str(i+1))
+    mission_red_flight[side] = set_coords(mission_red_flight[side], P, "check_bomber_present")
+
+    T = get_coords( helpers_airfield, "red_flight")
+    for i in range(mission_red_flight[side].count("WorldObjects\Planes\\")):
+      P = T + Point(-d_red*i*sin(radians(T.ry)),0 , d_red *i*cos(radians(T.ry)),0 ,0 ,0 )
+      mission_red_flight[side] = set_coords(mission_red_flight[side], P, "Red "+str(i+1))
+    for i in range(helpers_airfield.count("AAA_")):
+      T = get_coords( helpers_airfield, "AAA_" + str(i+1))
+      mission_object_site = find_group(mission_AAA_all, "airfield_" + side +"_"+str(i+1))
+      new_group = position_group(mission_object_site, T)
+      mission_AAA += new_group
+
+
     # Determine Waypoints for Blue flight, Red flight will cover Blue flight
-    wp_3=Point() # Define target waypoint
-    wp_3.x=float(find_substr( mission_objective[side], "XPos = ", ";", mission_objective[side].find("primary_objective")))
-    wp_3.z=float(find_substr( mission_objective[side], "ZPos = ", ";", mission_objective[side].find("primary_objective")))
+    wp_3 = get_coords( mission_objective[side], "primary_objective" )
+
     if objective_type in objective_types_low.keys():
       wp_3.y = float(cloud_level) - 100.000 - random.random()*150.000
       mission_blue_flight[side] = mission_blue_flight[side].replace("AttackGTargets = 0", "AttackGTargets = 1")
@@ -527,14 +557,11 @@ def GenerateMission(mission_name, date):
       wp_3.y = 2500.000 + random.random()*1000
       mission_blue_flight[side] = mission_blue_flight[side].replace("AttackGround = 0", "AttackGround = 1")
 
-    wp_0=Point() # Define start waypoint
-    wp_0.x=float(find_substr( mission_blue_flight[side], "XPos = ", ";", mission_blue_flight[side].find("wp_0")))
-    wp_0.y=float(find_substr( mission_blue_flight[side], "YPos = ", ";", mission_blue_flight[side].find("wp_0")))
-    wp_0.z=float(find_substr( mission_blue_flight[side], "ZPos = ", ";", mission_blue_flight[side].find("wp_0")))
+    wp_0 = get_coords( mission_blue_flight[side], "wp_0" )
 
-    wp_1 = Point(wp_0.x-random.random()*2000*(wp_3-wp_0).norm().x, wp_0.y, wp_0.z+(5000*(wp_3-wp_0).norm().z))
+    wp_1 = Point(wp_0.x-random.random()*8000*(wp_3-wp_0).norm().x, wp_0.y, wp_0.z+(5000*(wp_3-wp_0).norm().z))
     wp_2 = Point(wp_3.x-(4000*(wp_3-wp_0).norm().x), wp_3.y, wp_3.z-random.random()*3000*(wp_3-wp_0).norm().z )
-    wp_4 = Point(wp_3.x+random.random()*2000*(wp_3-wp_0).norm().x, wp_3.y, wp_3.z-(5000*(wp_3-wp_0).norm().z))
+    wp_4 = Point(wp_3.x+random.random()*4000*(wp_3-wp_0).norm().x, wp_3.y, wp_3.z-(8000*(wp_3-wp_0).norm().z))
     wp_5 = Point(wp_0.x+(3000*(wp_3-wp_0).norm().x), wp_0.y, wp_0.z+random.random()*4000*(wp_3-wp_0).norm().z)
 
     waypoints = [wp_0, wp_1, wp_2, wp_3, wp_4, wp_5]
@@ -542,9 +569,7 @@ def GenerateMission(mission_name, date):
     icons=[]
     mission_fp = find_group(mission_template, "Flight_Plan_"+side)
     for i,n in enumerate(waypoints):
-      mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "XPos = ", ";", "{0:.3f}".format(n.x), mission_blue_flight[side].find("wp_"+str(waypoints.index(n))))
-      mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "YPos = ", ";", "{0:.3f}".format(n.y), mission_blue_flight[side].find("wp_"+str(waypoints.index(n))))
-      mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "ZPos = ", ";", "{0:.3f}".format(n.z), mission_blue_flight[side].find("wp_"+str(waypoints.index(n))))
+      mission_blue_flight[side] = set_coords(mission_blue_flight[side], n, "wp_"+str(waypoints.index(n)))
       icon_pos = mission_fp.find("MCU_Icon", icon_pos) # create an icon corresponding with the wp and retrieve index etc
       icon_block = find_block( mission_fp, "MCU_Icon", icon_pos )
       index = find_substr( icon_block, "Index = ", ";" )
@@ -579,18 +604,19 @@ def GenerateMission(mission_name, date):
     
     # Change search area to objective location in all groups
     for mcu in ["InterceptPlayer", "FlightDetected"]:
-      mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "XPos = ", ";", "{0:.3f}".format(wp_3.x), mission_blue_flight[side].find(mcu))
-      mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "YPos = ", ";", "{0:.3f}".format(wp_3.y), mission_blue_flight[side].find(mcu))
-      mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "ZPos = ", ";", "{0:.3f}".format(wp_3.z), mission_blue_flight[side].find(mcu))
+      mission_blue_flight[side] = set_coords(mission_blue_flight[side], wp_3, mcu)
+      #mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "XPos = ", ";", "{0:.3f}".format(wp_3.x), mission_blue_flight[side].find(mcu))
+      #mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "YPos = ", ";", "{0:.3f}".format(wp_3.y), mission_blue_flight[side].find(mcu))
+      #mission_blue_flight[side] = replace_substr(mission_blue_flight[side], "ZPos = ", ";", "{0:.3f}".format(wp_3.z), mission_blue_flight[side].find(mcu))
     
     # Move AAA sites to random locations
     nf = mission_AAA_all.count("flak_"+side+"_") # number of object groups
     np = helper_group.count("AAA_"+side+"_") # number of possible locations
-    lst = random_set(1,np,nf)
+    lst = random.sample(range(1,np+1),nf)
     for i, site in enumerate(lst):
       mission_object_site = find_group(mission_AAA_all, "flak_"+side+"_"+str(i+1))
-      D = find_coords(helper_group, "AAA_"+side+"_"+str(site) )
-      new_group = move_group(mission_object_site, D)
+      D = get_coords(helper_group, "AAA_"+side+"_"+str(site) )
+      new_group = position_group(mission_object_site, D)
       mission_AAA += new_group
 
   '''
@@ -680,5 +706,6 @@ def GenerateMission(mission_name, date):
 #
 
 month = "%02d" % random.randint(9,11)
+#month = "09"
 date = "%02d" % random.randint(1, 30) + "." + month + ".1942"
 GenerateMission("CoopStalingrad_01", date)
