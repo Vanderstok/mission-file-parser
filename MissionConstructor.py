@@ -4,149 +4,13 @@ import random
 import subprocess
 import configparser
 from math import sqrt, sin, cos, radians
+from Position import Position
+from Block import Block
+from MCU_Icon import MCU_Icon
 
 def GenerateMission(mission_name, date):
 
-  class Point: #     Point object represents and manipulates x,y,z coords. Also has heading
-      def __init__(self, x=0, y=0, z=0, rx=0, ry=0, rz=0):
-          self.x = x
-          self.y = y
-          self.z = z
-          self.rx = rx
-          self.ry = ry
-          self.rz = rz
-
-      def __str__(self):
-          return "({0}, {1}, {2}, {3}, {4}, {5})".format(self.x, self.y, self.z, self.rx, self.ry, self.rz)
-      
-      def __eq__(self, other):
-          return self.y == other.y and self.x == other.x and self.z == other.z and self.rx == other.rx and self.ry == other.ry and self.rz == other.rz
-
-      def __neg__(self):
-          return Point(-self.x, -self.y, -self.z, -self.rx, -self.ry, -self.rz)
-
-      def __add__(self, p):
-          return Point(self.x + p.x, self.y + p.y, self.z + p.z, (self.rx + p.rx)%360, (self.ry + p.ry)%360, (self.rz + p.rz)%360 )
-      
-      def __sub__(self, p):
-          return Point(self.x - p.x, self.y - p.y, self.z - p.z, (self.rx - p.rx)%360, (self.ry - p.ry)%360, (self.rz - p.rz)%360 )
-      
-      def __mul__(self, p):
-          return Point(self.x*p.x, self.y*p.y, self.z*p.z)
-
-      def __truediv__(self, p):
-          return Point(self.x/p.x, self.y/p.y, self.z/p.z)
-
-      def __abs__(self):
-          return Point(abs(self.x), abs(self.y), abs(self.z))
-      
-      def rotate(self, alpha):  # rotate around (0,0,0)
-        x_new = self.x * cos(alpha) - self.z * sin(alpha)
-        z_new = self.x * sin(alpha) + self.z * cos(alpha)
-        self.x = x_new
-        self.z = z_new
-        self.ry = (self.ry + alpha)%360
-
-      def norm(self):
-          return Point(abs(self.x)/self.x, abs(self.y)/self.y, abs(self.z)/self.z)
-
-      def __repr__(self):
-          return "Point: (%d, %d, %d, %d, %d, %d)" % (self.x, self.y, self.z, self.rx, self.ry, self.rz)
-
-  class Block: #     Block object represents a mission block
-      def __init__(self, s):
-        self.s = s
-
-        def find_value( s, s1, s2=";"):
-          a = (s.find(s1)+len(s1))
-          b = s.find(s2, (s.find(s1)+len(s1)))
-          return float(s[a:b])
-
-        self.x = find_value(self.s,"XPos = " )
-        self.y = find_value(self.s,"YPos = " )
-        self.z = find_value(self.s,"ZPos = " )
-        self.rx = find_value(self.s,"XOri = " )
-        self.ry = find_value(self.s,"YOri = " )
-        self.rz = find_value(self.s,"ZOri = " )
-
-      def __add__(self, p):
-        return Point(self.x + p.x, self.y + p.y, self.z + p.z, (self.rx + p.rx)%360, (self.ry + p.ry)%360, (self.rz + p.rz)%360 )
-
-      def __sub__(self, p):
-        return Point(self.x - p.x, self.y - p.y, self.z - p.z, (self.rx - p.rx)%360, (self.ry - p.ry)%360, (self.rz - p.rz)%360 )
-
-      def __str__(self):
-        def replace_value( s, s1, r, s2=";"):
-          a = (s.find(s1)+len(s1))
-          b = s.find(s2, a)
-          s = s[0:a]+r+s[b:len(s)]
-          return s 
-        self.s = replace_value(self.s,"XPos = ", "{0:.3f}".format(self.x))
-        self.s = replace_value(self.s,"YPos = ", "{0:.3f}".format(self.y))
-        self.s = replace_value(self.s,"ZPos = ", "{0:.3f}".format(self.z))
-        self.s = replace_value(self.s,"XOri = ", "{0:.3f}".format(self.rx))
-        self.s = replace_value(self.s,"YOri = ", "{0:.3f}".format(self.ry))
-        self.s = replace_value(self.s,"ZOri = ", "{0:.3f}".format(self.rz))
-        return self.s
-  
-      def __repr__(self):
-        return "Block located at: (%d, %d, %d)" % (self.x, self.y, self.z)
-
-      def translate(self, v):
-        self.x += v.x
-        self.y += v.y
-        self.z += v.z
-        return self
-
-      def rotate(self, p): # rotate block around Point p with angle from p.ry
-        alpha = p.ry
-        r_alpha = radians(p.ry)
-        x_0 = self.x - p.x
-        z_0 = self.z - p.z
-        x_1 = x_0 * cos(r_alpha) - z_0 * sin(r_alpha)
-        z_1 = x_0 * sin(r_alpha) + z_0 * cos(r_alpha)
-        self.x = self.x - (x_0 - x_1)
-        self.z = self.z + z_1 - z_0
-        self.ry = (self.ry + alpha)%360
-        return self
-
-  class MCU_Icon: #   Icon class represents an Icon on the map
-    def __init__(self, index, targets, icon_id, coals, x, z, lcname, lcdesc, ltype=14, color=[100,0,0]):
-      self.index = index
-      self.targets = targets
-      self.icon_id = icon_id
-      self.coals = coals
-      self.x = x
-      self.z = z
-      self.lcname = lcname
-      self.lcdesc = lcdesc
-      self.ltype = ltype
-      self.color = color
-
-    def __str__(self):
-      return ("MCU_Icon\n"
-        "{\n"
-        "  Index = "+str(self.index)+";\n"
-        "  Targets = ["+str(self.targets[0])+"];\n"
-        "  Objects = [];\n"
-        "  XPos = {0:.3f}".format(self.x)+";\n"
-        "  YPos = 0.00;\n"
-        "  ZPos = {0:.3f}".format(self.z)+";\n"
-        "  XOri = 0.00;\n"
-        "  YOri = 0.00;\n"
-        "  ZOri = 0.00;\n"
-        "  Enabled = 1;\n"
-        "  LCName = "+str(self.lcname)+";\n"
-        "  LCDesc = "+str(self.lcdesc)+";\n"
-        "  IconId = "+str(self.icon_id)+";\n"
-        "  RColor = "+str(self.color[0])+";\n"
-        "  GColor = "+str(self.color[1])+";\n"
-        "  BColor = "+str(self.color[2])+";\n"
-        "  LineType = "+str(self.ltype)+";\n"
-        "  Coalitions = "+str(self.coals)+";\n"
-        "}\n\n")
-
-  # Function to return a group in a mission file based on the group Name
+    # Function to return a group in a mission file based on the group Name
   def find_group( s, name ):
       start = s.find("  Name = \""+name+"\"")
       s ="Group\n{\n"+s[start:len(s)]
@@ -172,9 +36,9 @@ def GenerateMission(mission_name, date):
           if not open:
               return name+"\n{"+match[:index]+"}\n\n"
 
-  # Function to return Point based on object name in group s and starting at st
+  # Function to return Position based on object name in group s and starting at st
   def get_coords( s, name, st=0 ):
-      P =Point()
+      P =Position()
       P.x = float(find_substr( s, "XPos = ", ";", s.find(name)))
       P.y = float(find_substr( s, "YPos = ", ";", s.find(name)))
       P.z = float(find_substr( s, "ZPos = ", ";", s.find(name)))
@@ -182,8 +46,8 @@ def GenerateMission(mission_name, date):
       P.ry = float(find_substr( s, "YOri = ", ";", s.find(name)))
       P.rz = float(find_substr( s, "ZOri = ", ";", s.find(name)))
       return P
-      
-  # Function to set coords of a MCU based on Point object
+
+  # Function to set coords of a MCU based on Position object
   def set_coords( s, P, name):
       s = replace_substr(s, "XPos = ", ";", "{0:.3f}".format(P.x), s.find(name))
       s = replace_substr(s, "YPos = ", ";", "{0:.3f}".format(P.y), s.find(name))
@@ -214,7 +78,7 @@ def GenerateMission(mission_name, date):
         s = s[a+i+3:len(s)]
       return block
 
-  # Function to position group( group(string), dest Point (contains destination location and heading based on center of group)
+  # Function to position group( group(string), dest Position (contains destination location and heading based on center of group)
   def position_group(group, D ):
     name = find_substr( group, "Name = ", ";" )
     index = find_substr( group, "Index = ", ";" )
@@ -224,7 +88,7 @@ def GenerateMission(mission_name, date):
     for s in block_list:
       block_group.append(Block(s))
 
-    # Determine rotation Point based on center point of group 
+    # Determine rotation Position based on center point of group 
     x_min = min([(i.x) for i in block_group])
     y_min = min([(i.y) for i in block_group])
     z_min = min([(i.z) for i in block_group])
@@ -234,7 +98,7 @@ def GenerateMission(mission_name, date):
     x_c = x_min + (x_max - x_min)/2
     y_c = y_min + (y_max - y_min)/2
     z_c = z_min + (z_max - z_min)/2
-    R = Point(x_c, y_c, z_c, 0,0,0)
+    R = Position(x_c, y_c, z_c, 0,0,0)
     R.ry = D.ry
 
     #iterate through all block objects and move them
@@ -246,7 +110,7 @@ def GenerateMission(mission_name, date):
     moved_group = "Group\n{\n  Name = "+name+";\n  Index = "+index+";\n  Desc = "+desc+";\n" + moved_group + "}\n\n"
     return moved_group
 
-  # Function to move group( group, move_Point ) group = string, Point contains translation and heading change
+  # Function to move group( group, move_Position ) group = string, Position contains translation and heading change
   def move_group(group, V ):
     name = find_substr( group, "Name = ", ";" )
     index = find_substr( group, "Index = ", ";" )
@@ -500,6 +364,14 @@ def GenerateMission(mission_name, date):
     objective="objective_" + side + "_" + str(random.randint(1,objective_group.count("objective_"+side)))
     mission_objective[side] = find_group(objective_group, objective)
     
+    # Test code
+
+    # insert code here to choose new objective location, random, but within Lines
+    
+    # insert code here to move the objective group to chosen location
+
+    # insert code here to move AAA to objective location (see below/airfield)
+    
     print(objective_type, objective)
 
     # Choose random plane type and assign appropriate loadout (Red flight always default loadout for now)
@@ -532,13 +404,13 @@ def GenerateMission(mission_name, date):
     d_red = 20
     T = get_coords( helpers_airfield, "blue_flight")
     for i in range(mission_blue_flight[side].count("WorldObjects\Planes\\")):
-      P = T + Point(-d_blue*i*sin(radians(T.ry)),0 , d_blue*i*cos(radians(T.ry)),0 ,0 ,0 )
+      P = T + Position(-d_blue*i*sin(radians(T.ry)),0 , d_blue*i*cos(radians(T.ry)),0 ,0 ,0 )
       mission_blue_flight[side] = set_coords(mission_blue_flight[side], P, "Blue "+str(i+1))
     mission_red_flight[side] = set_coords(mission_red_flight[side], P, "check_bomber_present")
 
     T = get_coords( helpers_airfield, "red_flight")
     for i in range(mission_red_flight[side].count("WorldObjects\Planes\\")):
-      P = T + Point(-d_red*i*sin(radians(T.ry)),0 , d_red *i*cos(radians(T.ry)),0 ,0 ,0 )
+      P = T + Position(-d_red*i*sin(radians(T.ry)),0 , d_red *i*cos(radians(T.ry)),0 ,0 ,0 )
       mission_red_flight[side] = set_coords(mission_red_flight[side], P, "Red "+str(i+1))
     for i in range(helpers_airfield.count("AAA_")):
       T = get_coords( helpers_airfield, "AAA_" + str(i+1))
@@ -559,10 +431,10 @@ def GenerateMission(mission_name, date):
 
     wp_0 = get_coords( mission_blue_flight[side], "wp_0" )
 
-    wp_1 = Point(wp_0.x-random.random()*8000*(wp_3-wp_0).norm().x, wp_0.y, wp_0.z+(5000*(wp_3-wp_0).norm().z))
-    wp_2 = Point(wp_3.x-(4000*(wp_3-wp_0).norm().x), wp_3.y, wp_3.z-random.random()*3000*(wp_3-wp_0).norm().z )
-    wp_4 = Point(wp_3.x+random.random()*4000*(wp_3-wp_0).norm().x, wp_3.y, wp_3.z-(8000*(wp_3-wp_0).norm().z))
-    wp_5 = Point(wp_0.x+(3000*(wp_3-wp_0).norm().x), wp_0.y, wp_0.z+random.random()*4000*(wp_3-wp_0).norm().z)
+    wp_1 = Position(wp_0.x-random.random()*8000*(wp_3-wp_0).norm().x, wp_0.y, wp_0.z+(5000*(wp_3-wp_0).norm().z))
+    wp_2 = Position(wp_3.x-(4000*(wp_3-wp_0).norm().x), wp_3.y, wp_3.z-random.random()*3000*(wp_3-wp_0).norm().z )
+    wp_4 = Position(wp_3.x+random.random()*4000*(wp_3-wp_0).norm().x, wp_3.y, wp_3.z-(8000*(wp_3-wp_0).norm().z))
+    wp_5 = Position(wp_0.x+(3000*(wp_3-wp_0).norm().x), wp_0.y, wp_0.z+random.random()*4000*(wp_3-wp_0).norm().z)
 
     waypoints = [wp_0, wp_1, wp_2, wp_3, wp_4, wp_5]
     icon_pos = 0
