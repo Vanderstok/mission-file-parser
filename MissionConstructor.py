@@ -4,12 +4,13 @@ import random
 import subprocess
 import configparser
 import json
+import os
 from math import sqrt, sin, cos, radians
 from Position import Position
 from Block import Block
 from MCU_Icon import MCU_Icon
 
-def GenerateMission(mission_name, date, randomized=True):
+def GenerateMission(mission_name, template_path, template_name, date, randomized=True, msbin=True):
 
     # Function to return a group in a mission file based on the group Name
   def find_group( s, name ):
@@ -24,9 +25,9 @@ def GenerateMission(mission_name, date, randomized=True):
           if not open:
               return "Group\n{"+match[:index]+"}\n\n"
 
-  # Function to return a block based on block header name and starting at st
-  def find_block( s, name, st=0 ):
-      start = s.find(name+"\n", st)
+  # Function to return a block in group s, based on block name and starting at st
+  def find_block( s, block_name, st=0 ):
+      start = s.find(block_name+"\n", st)
       s = s[start:len(s)]
       if '{' in s:
         match = s.split('{',1)[1]
@@ -35,7 +36,27 @@ def GenerateMission(mission_name, date, randomized=True):
           if match[index] in '{}':
               open = (open + 1) if match[index] == '{' else (open - 1)
           if not open:
-              return name+"\n{"+match[:index]+"}\n\n"
+              return block_name+"\n{"+match[:index]+"}\n\n"
+
+  # Function to delete a block based on index in group s
+  def delete_block( s, index ):
+      x = s.find("Index = "+index+";") # find pos of Index
+      s1 = s.rfind("{", 0, x) # find pos of first line before {
+      for k in range(2): # number of extra lines to cut
+        s1 = s.rfind("\n", 0, s1-1)  # find pos at end of }
+      #print ("s1 = ", s1)
+      open = 1
+      for i in range(x,len(s)):
+        if s[i] in '{}':
+            open = (open + 1) if s[i] == '{' else (open - 1)
+        if not open:
+          s2 = i
+          break
+      for k in range(2):
+        s2 = s.find("\n", s2+1)
+      #print("s2 = ", s2)
+      return s[0:s1] + s[s2:len(s)]
+
 
   # Function to return Position based on object name in group s and starting at st
   def get_coords( s, name, st=0 ):
@@ -192,13 +213,11 @@ def GenerateMission(mission_name, date, randomized=True):
   config = configparser.ConfigParser()
   config.read('config.ini')
   il2_path = config['DEFAULT']['il2_path']
-  template_name = config['DEFAULT']['template_name']
+  coop_path = il2_path + "\\data\\Multiplayer\\Cooperative\\"
   data_path = il2_path + "\\data\\"
   mission_path = il2_path + "\\data\Missions\\"
   resaver_path = il2_path + "\\bin\\resaver\\"
-  coop_path = il2_path + "\\data\\Multiplayer\\Cooperative\\"
-  if not randomized:
-    mission_name = config['DEFAULT']['mission_name']
+
   mission_description="This is a test mission to test the mission generator.<br><br>Your primary mission is to destroy the target marked on the map. Good luck!"
   mission_author="Vander"
   mission_header="# Mission File Version = 1.0;\n\n"
@@ -206,7 +225,6 @@ def GenerateMission(mission_name, date, randomized=True):
 
   objective_types_low = {"airfield": 1,"artillery": 1, "armor": 1 } # defines objective types and payload type per objective
   objective_types_high = {"train": 2, "dump": 2, "bridge": 2}
-  #ndic = dict(dic0.items() + dic1.items())
   objective_types_all = dict(objective_types_low, **objective_types_high)
   objective_desc_all = {
     "airfield": "Enemy bombers have been spotted while lined up on one of the airfields.",
@@ -263,27 +281,26 @@ def GenerateMission(mission_name, date, randomized=True):
   mission_icons = ""
   mission_AAA = {}
 
-  # Read files
-  with open(coop_path + template_name + ".mission", 'r') as file :
+  # Read files 
+
+  with open(template_path + template_name + ".mission", 'r') as file :
     mission_template = file.read()
-  with open(coop_path + template_name + ".eng", 'r', encoding='UTF-16') as file :
+  with open(template_path + template_name + ".eng", 'r', encoding='UTF-16') as file :
     labels = file.read()
 
   #
   # Choose Day/Time and Weather
   #
-
+  date_new = date
   season = "summer"
   cloud_prefix = ["00_clear_0","01_Light_0","02_Medium_0","03_Heavy_0","04_Overcast_0"] # note clear; no capital
   if randomized:
     hours = "{:02d}".format(random.randint(8, 16))
     minutes = "{:02d}".format(random.randint(0,59))
     time_new = hours + ":" + minutes
-    date_new = date
     cloud_type = random.choice([0,1,1,1,2,2,2,3,3,4])
     wind_speed = random.randint(0,8)
   else:
-    date_new = "20.10.1942"
     mission_time_c = config['MISSION']['mission_time']
     time_new = {"dawn": "07:00", "morning": "08:30", "noon": "12:00", "afternoon": "15:30", "dusk": "18:00", "night": "23:00"}[mission_time_c]
     mission_wind_c = config['MISSION']['mission_wind']
@@ -354,15 +371,20 @@ def GenerateMission(mission_name, date, randomized=True):
   mission_AAA_all = find_group(mission_template, "AAA")
   helper_group = find_group(mission_template, "Helpers")
   mission_AAA = ""
+  
   #
   # For each side: 
   #
+  # side_c: 0 -both sides, 1=allied only, 2=axis only
+  # scenario[side] = 0 = random, 1: patrol front, 2 = escort bombers, 3 = ground attack, 
+  scenario = {}
+  side_c = int(config['MISSION']['side'])
 
-  side_c = config['MISSION']['side']
   for side in ["allied", "axis"]:
+    scenario[side] = int(config['MISSION']['scenario_' + side])
     # Determine objective type
-    if (not randomized) and side_c==side:
-      objective_type = config['MISSION']['mission_target']
+    if scenario[side] != 0:
+      objective_type = config['MISSION']['mission_target_' + side]
       payload_type = objective_types_all[objective_type]
     else:
       if cloud_type == 4: # if overcast limit possibilities
@@ -382,18 +404,16 @@ def GenerateMission(mission_name, date, randomized=True):
     LCText = find_substr( mission_logic, "LCText = ", ";", mission_logic.find("Briefing_"+side) )
     labels = replace_substr( labels, "\n" + LCText +":", "\n", mission_objective_desc[side])
 
-    # Select random objective of chosen type
+    # Select random objective group (layout) of chosen type
     objectives_group = find_group(mission_template, "Objectives_" + objective_type)
     helpers_group = find_group(mission_template, "Helpers")
-
-    #objective_index = random.randint(1,objectives_group.count("objective_" + objective_type + "_" +side))
-    helper_index = random.randint(1,helpers_group.count("objective_" + objective_type + "_" +side))
-    objective_index = 1 # TEST
-    #helper_index = 1 # TEST
+    objective_index = random.randint(1,objectives_group.count("objective_" + objective_type + "_" +side))
     objective="objective_" + objective_type + "_" + side + "_" + str(objective_index)
-
-    helpers_objective = find_group(helpers_group, "objective_" + objective_type + "_" + side + "_" + str(helper_index))
     objective_group = find_group(objectives_group, "objective_" + objective_type + "_" + side + "_" + str(objective_index))
+    
+    # Select random location of the objective group
+    helper_index = random.randint(1,helpers_group.count("objective_" + objective_type + "_" +side))
+    helpers_objective = find_group(helpers_group, "objective_" + objective_type + "_" + side + "_" + str(helper_index))
     T = get_coords( helpers_objective, "primary_target")
     C = get_coords( objective_group, "primary_objective" )
     mission_objective[side] = move_group(objective_group, T-C, T)
@@ -410,20 +430,19 @@ def GenerateMission(mission_name, date, randomized=True):
     mission_blue_flight[side] = find_group(mission_template, "Blue_flight_" + side)
     mission_red_flight[side] = find_group(mission_template, "Red_flight_" + side)
 
-    # Choose random plane type and assign appropriate loadout (Red flight always default loadout for now)
-    if (not randomized) and side_c==side:
+    # Choose plane type and assign appropriate loadout
+    if scenario[side] != 0:
       bombers_c = config['PLANES']['bombers_'+side]
       bombers_c = dict(json.loads(bombers_c.replace("'", "\"")))
-      plane_blue_c = config['MISSION']['bomber_type']
+      plane_blue_c = config['MISSION']['bomber_type_' + side]
       plane_blue = bombers_c[plane_blue_c]
       fighters_c = config['PLANES']['fighters_'+side]
       fighters_c = dict(json.loads(fighters_c.replace("'", "\"")))
-      plane_red_c = config['MISSION']['fighter_type']
+      plane_red_c = config['MISSION']['fighter_type_' + side]
       plane_red = fighters_c[plane_red_c]
-      fighter_skill_c = config['MISSION']['fighter_skill']
-      skill_red ={"rookie": "1" , "regular": "2", "veteran": "3"} [fighter_skill_c]
-      mission_red_flight[side] = mission_red_flight[side].replace(find_substr(mission_red_flight[side], "AILevel = ", ";"), skill_red)
-
+      fighter_skill_c = config['MISSION']['fighter_skill_' + side]
+      skill_red ={"rookie": "1" , "regular": "2", "veteran": "3"}[fighter_skill_c]
+      mission_red_flight[side] = replace_substr( mission_red_flight[side], "AILevel = ", ";", skill_red, 0, False)
     else:  
       if objective in objective_types_high:
         plane_blue=bombers_all[side][random.randint(0, len(bombers_all[side])-1)]
@@ -439,9 +458,47 @@ def GenerateMission(mission_name, date, randomized=True):
     mod = str((plane_config_all[side][plane_blue])[payload_type][1])
     mission_blue_flight[side] = mission_blue_flight[side].replace("PayloadId = 0", "PayloadId = " + payload_blue)
     mission_blue_flight[side] = mission_blue_flight[side].replace("WMMask = 1", "WMMask = " + mod)
+    
+    # Single sided or double sided? 
+    
+    if (side == "allied" and side_c == 2) or (side == "axis" and side_c == 1):
+      mission_blue_flight[side] = mission_blue_flight[side].replace("CoopStart = 1", "CoopStart = 0")
+      mission_red_flight[side] = mission_red_flight[side].replace("CoopStart = 1", "CoopStart = 0")
+
+    # Delete planes based on desired number
+    bomber_count = {}
+    fighter_count = {}
+    if scenario[side] != 0:
+      bomber_count[side] = int(config['MISSION']['bomber_count_' + side])
+      for i in range(bomber_count[side]+1,mission_blue_flight[side].count("Blue ")+1):
+        st = mission_blue_flight[side].find("Blue "+ str(i))
+        Index_plane = find_substr( mission_blue_flight[side], "Index = ", ";", st)
+        mission_blue_flight[side] = delete_block( mission_blue_flight[side], Index_plane)
+        st = mission_blue_flight[side].find("MisObjID = " + Index_plane + ";")
+        st = mission_blue_flight[side].rfind("Index = ",0,st)
+        Index_entity = find_substr( mission_blue_flight[side], "Index = ", ";", st)
+        mission_blue_flight[side] = delete_block( mission_blue_flight[side], Index_entity)
+      fighter_count[side] = int(config['MISSION']['fighter_count_' + side])
+      for i in range(fighter_count[side]+1,mission_red_flight[side].count("Red ")+1):
+        st = mission_red_flight[side].find("Red "+ str(i))
+        Index_plane = find_substr( mission_red_flight[side], "Index = ", ";", st)
+        mission_red_flight[side] = delete_block( mission_red_flight[side], Index_plane)
+        st = mission_red_flight[side].find("MisObjID = " + Index_plane + ";")
+        st = mission_red_flight[side].rfind("Index = ",0,st)
+        Index_entity = find_substr( mission_red_flight[side], "Index = ", ";", st)
+        mission_red_flight[side] = delete_block( mission_red_flight[side], Index_entity)
 
     # Move airfield
-    helpers_airfield = find_group(mission_template, "helpers_airfield_" + side + "_" + month)
+    if randomized:
+      phase = month
+    else:
+      if scenario[side] != 0 and side == "allied":
+        phase = {"far from": "11", "close to": "09"}[config['MISSION']['start_location_' + side]]
+      elif scenario[side] != 0 and side == "axis":
+        phase = {"far from": "09", "close to": "11"}[config['MISSION']['start_location_' + side]]
+      else:
+        phase = month
+    helpers_airfield = find_group(mission_template, "helpers_airfield_" + side + "_" + phase)
     T = get_coords( helpers_airfield, "wp_0")
     C_blue = get_coords( mission_blue_flight[side], "wp_0" )
     C_red = get_coords( mission_red_flight[side], "wp_0" )
@@ -476,9 +533,9 @@ def GenerateMission(mission_name, date, randomized=True):
       wp_3.y = 2500.000 + random.random()*1000
       mission_blue_flight[side] = mission_blue_flight[side].replace("AttackGround = 0", "AttackGround = 1")
     wp_0 = get_coords( mission_blue_flight[side], "wp_0" )
-    wp_1 = Position(wp_0.x-random.random()*8000*(wp_3-wp_0).norm().x, wp_0.y, wp_0.z+(5000*(wp_3-wp_0).norm().z))
+    wp_1 = Position(wp_0.x-random.random()*6000*(wp_3-wp_0).norm().x, wp_0.y, wp_0.z+(5000*(wp_3-wp_0).norm().z))
     wp_2 = Position(wp_3.x-(4000*(wp_3-wp_0).norm().x), wp_3.y, wp_3.z-random.random()*3000*(wp_3-wp_0).norm().z )
-    wp_4 = Position(wp_3.x+random.random()*4000*(wp_3-wp_0).norm().x, wp_3.y, wp_3.z-(8000*(wp_3-wp_0).norm().z))
+    wp_4 = Position(wp_3.x+random.random()*4000*(wp_3-wp_0).norm().x, wp_3.y, wp_3.z-(6000*(wp_3-wp_0).norm().z))
     wp_5 = Position(wp_0.x+(3000*(wp_3-wp_0).norm().x), wp_0.y, wp_0.z+random.random()*4000*(wp_3-wp_0).norm().z)
     waypoints = [wp_0, wp_1, wp_2, wp_3, wp_4, wp_5]
     icon_pos = 0
@@ -517,7 +574,21 @@ def GenerateMission(mission_name, date, randomized=True):
     
     # Determine AI Patrols
     mission_patrols[side] = create_AI_flight(mission_template, "Patrols", "fighters_" + side + "_", "patrol_" + side + "_", fighters_all[side])
-    
+    # Set intercept randomness
+    if side == "allied":
+      other_side = "axis"
+    else:
+      other_side = "allied"
+    if scenario[side] == 0:
+      intercept_chance = random.choice(["25", "50", "100"])
+    else:
+      intercept_chance = {"low": "25", "medium": "50", "high": "100"}[config['MISSION']['intercept_chance_' + other_side]]
+    x=0
+    for i in range(mission_patrols[side].count("intercept_random")):
+      st = mission_patrols[side].find("intercept_random", x)
+      mission_patrols[side] = replace_substr(mission_patrols[side], "Random = ", ";", intercept_chance, st)
+      x = st + 1
+
     # Change search area to objective location in all groups
     for mcu in ["InterceptPlayer", "FlightDetected"]:
       mission_blue_flight[side] = set_coords(mission_blue_flight[side], wp_3, mcu)
@@ -569,14 +640,19 @@ def GenerateMission(mission_name, date, randomized=True):
     "<b>Your orders: </b><ul><li>Blue Flight will attack the primary target.</li>"
     "<li>Red Flight will wait for Blue flight to take off, then escort Blue Flight to the target.</li><br></ul>Good luck!<br>")
 
+  # TEST
+  # mission_description = "Have a great mission"
   # Add mission description
   lcname = find_substr(mission_options, "LCName = ", ";")
   lcdesc = find_substr(mission_options, "LCDesc = ", ";")
   lcauthor = find_substr(mission_options, "LCAuthor = ", ";")
 
-  labels = replace_substr( labels, lcname+":", "\n", mission_name)
-  labels = replace_substr( labels, lcauthor+":", "\n", mission_author)
-  labels = replace_substr( labels, lcdesc+":", "\n", mission_description)
+  labels = labels.replace("<name>", mission_name) 
+  labels = labels.replace("<description>", mission_description)
+  labels = labels.replace("<author>", mission_author)
+  #labels = replace_substr( labels, lcname+":", "\n", mission_name)
+  #labels = replace_substr( labels, lcauthor+":", "\n", mission_author)
+  #labels = replace_substr( labels, lcdesc+":", "\n", mission_description)
 
   # print("The chosen player plane = "+plane_new)
   # print("The chosen objective = "+objective)
@@ -587,20 +663,22 @@ def GenerateMission(mission_name, date, randomized=True):
   # Write the mission file
   with open(mission_path + mission_name + '.mission', 'w') as file:
     file.write(mission)
-
   
   # Write the description file. Desc files need UTF-16 encoding. .
   with open(mission_path + mission_name + '.eng', 'w', encoding='utf_16') as file:
     file.write(labels)
 
   # Convert to msbin file
-  # subprocess.call([resaver_path+"MissionResaver.exe", "-d", data_path, "-f", mission_path + mission_name + ".mission" ])
+  if msbin:
+    #print(resaver_path)
+    command_list = [".\MissionResaver.exe", "-d", data_path, "-f", mission_path + mission_name + ".mission"]
+    #stream = os.popen(command_list)
+    subprocess.run(command_list, cwd=resaver_path, shell=True)
 
   # Write the description file. Desc files need UTF-16 encoding. Note: resaver seems to destroy desc files (workaround).
+
   with open(mission_path + mission_name + '.eng', 'w', encoding='utf_16') as file:
     file.write(labels)
-
-  '''
   with open(mission_path + mission_name + '.fra', 'w', encoding='UTF-16') as file:
     file.write(labels)
   with open(mission_path + mission_name + '.ger', 'w', encoding='UTF-16') as file:
@@ -611,7 +689,6 @@ def GenerateMission(mission_name, date, randomized=True):
     file.write(labels)
   with open(mission_path + mission_name + '.spa', 'w', encoding='UTF-16') as file:
     file.write(labels)
-  '''
 
 
 #
@@ -619,7 +696,12 @@ def GenerateMission(mission_name, date, randomized=True):
 #
 
 if __name__ == "__main__":
+  # Create random mission
   month = "%02d" % random.randint(9,11)
   #month = "09"
   date = "%02d" % random.randint(1, 30) + "." + month + ".1942"
-  GenerateMission("CoopStalingrad_01", date)
+
+  template_path="C:/Program Files (x86)/1C Game Studios/IL-2 Sturmovik Battle of Stalingrad/data/Multiplayer/Cooperative/"
+  template_name="CoopTemplate_1"
+  mission_name = "CoopStalingrad_01"
+  GenerateMission("CoopStalingrad_01", template_path, template_name, date, False, True)
