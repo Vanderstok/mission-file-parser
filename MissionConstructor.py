@@ -242,20 +242,21 @@ def GenerateMission(mission_name, template_path, template_name, date, msbin=True
     "garrison" : "An enemy garrison has been located close to the front lines."
   }
 
-  fighters_allied=["la5s8", "p39l1", "p40e1", "lagg3s29", "lagg3s29", "yak1s69", "yak1s69", "mig3s24"]
-  fighters_axis=["bf109e7","bf109f2","bf109f4","bf109g2","fw190a3","mc202s8","bf110e2"]
+  fighters_allied = list(dict(json.loads(config['PLANES']['fighters_allied'].replace("'", "\""))).values())
+  fighters_axis = list(dict(json.loads(config['PLANES']['fighters_axis'].replace("'", "\""))).values())
+
   fighters_all={
     "allied": fighters_allied,
     "axis": fighters_axis
   }
-  bombers_allied=["a20b", "pe2s87", "pe2s87"]
-  bombers_axis=["he111h6", "ju88a4"]
+  bombers_allied = list(dict(json.loads(config['PLANES']['bombers_allied'].replace("'", "\""))).values())
+  bombers_axis = list(dict(json.loads(config['PLANES']['bombers_axis'].replace("'", "\""))).values())
   bombers_all={
     "allied": bombers_allied,
     "axis": bombers_axis
   }
-  attackers_allied=["a20b", "pe2s87", "pe2s87", "il2m42", "il2m42", "p40e1"]
-  attackers_axis=["ju87d3", "ju88a4", "ju87d3", "ju87d3", "hs129b2", "bf110e2"]
+  attackers_allied = list(dict(json.loads(config['PLANES']['attackers_allied'].replace("'", "\""))).values())
+  attackers_axis = list(dict(json.loads(config['PLANES']['attackers_axis'].replace("'", "\""))).values())
   attackers_all={
     "allied": attackers_allied,
     "axis": attackers_axis
@@ -268,11 +269,14 @@ def GenerateMission(mission_name, template_path, template_name, date, msbin=True
     "il2m43": ["IL-2 AM-38", [41,1], [25,1], 4 ],
     "pe2s87": ["Pe-2 Series 87", [4,11], [5,101], 4 ],
     "p40e1": ["P-40 E", [30, 11011], [10, 100011], 2 ],
-    "p39l1": ["P-39L-1", [0, 1], [0, 1], 2 ],
+    "p39l1": ["P-39L-1", [13, 100101], [12, 101], 2 ],
     "la5s8": ["La-5 Series 8", [0, 1], [0, 1], 2 ],
-    "lagg3s29": ["LaGG-3 Series 29", [0, 1], [0, 1], 2 ],
+    "lagg3s29": ["LaGG-3 Series 29", [18, 10101], [0, 1], 2 ],
     "yak1s69": ["Yak-1 Series 69", [0, 1], [0, 1], 2 ],
-    "mig3s24": ["MiG-3 Series 24", [0, 1], [0, 1], 2 ]
+    "mig3s24": ["MiG-3 Series 24", [0, 1], [0, 1], 2 ],
+    "spitfiremkvb": ["Spitfire Mk.VВ", [0, 11], [0, 11], 2 ],
+    "spitfiremkixe": ["Spitfire Mk.IXE", [2, 1000101], [2, 1000101], 2 ],
+    "p47d28": ["P-47D-28", [48, 10001], [18, 10001], 2 ]
   }
   plane_config_axis={
     "ju87d3": ["Ju 87 D-3", [5,11], [4,1], 3 ],
@@ -283,14 +287,14 @@ def GenerateMission(mission_name, template_path, template_name, date, msbin=True
     "bf109e7": ["Bf 109 E-7" ,[0,1], [0,1], 2 ],
     "bf109f2": ["Bf 109 F-2" ,[0,1], [0,1], 1 ],
     "bf109f4": ["Bf 109 F-4" ,[0,1], [0,1], 2 ],
-    "bf109g2": ["Bf 109 G-2" ,[0,1], [0,1], 2 ],
-    "fw190a3": ["Fw 190 A-3" ,[0,1], [0,1], 2 ],
-    "mc202s8": ["MC.202 Series VIII" ,[0,1], [0,1], 1 ]
+    "bf109g2": ["Bf 109 G-2" ,[2,1001], [2,1001], 2 ],
+    "fw190a3": ["Fw 190 A-3" ,[2,101], [3,1001], 2 ],
+    "mc202s8": ["MC.202 Series VIII" ,[0,1], [0,1], 1 ],
+    "fw190a5": ["Fw 190 A-5", [8, 10101], [3, 1001], 2 ],
+    "fw190a8": ["Fw 190 A-8", [35, 1100001], [35, 1100001], 2 ],
+    "bf110g2": ["Bf 110 G-2", [12, 1000001], [4, 1001], 2 ]
   }
-  plane_config_all={
-    "allied": plane_config_allied,
-    "axis": plane_config_axis
-  }
+  plane_config_all = dict(plane_config_allied, **plane_config_axis)
 
   mission_objective_desc = {}
   mission_objective = {}
@@ -444,21 +448,23 @@ def GenerateMission(mission_name, template_path, template_name, date, msbin=True
       other_side = "allied"
 
     # Determine objective type
-    if scenario[side] != 0:
-      objective_type = config['MISSION']['mission_target_' + side]
-      payload_type = objective_types_all[objective_type]
-    else:
-      if cloud_type == 4: # if overcast limit possibilities
-        objective_type = random.choice(list(objective_types_low.keys())) 
-        payload_type = objective_types_low[objective_type]
-      else:
-        if random.randint(1,10)>4:
-          objective_type = random.choice(list(objective_types_high.keys()))
-          payload_type = objective_types_high[objective_type]
+    if random_config[side]:
+      if scenario[side] == 2:
+        if cloud_type == 4: # if overcast limit possibilities
+          objective_type = random.choice(list(objective_types_low.keys())) 
         else:
-          objective_type = random.choice(list(objective_types_low.keys()))
-          payload_type = objective_types_low[objective_type]
-    
+          if random.randint(1,10)>4:
+            objective_type = random.choice(list(objective_types_high.keys()))
+          else:
+            objective_type = random.choice(list(objective_types_low.keys()))
+      else:
+        objective_type = random.choice(list(objective_types_low.keys())) 
+    elif scenario[side] in [2,3]:
+      objective_type = config['MISSION']['mission_target_' + side]
+    else:
+      objective_type = random.choice(list(objective_types_low.keys())) 
+    payload_type = objective_types_all[objective_type]
+
     if scenario[side] == 1:
       objective_desc = objective_desc_all["patrol"]
       mission_objective_desc[side] = ("<b>Situation: </b>" + objective_desc +"<br>"
@@ -526,9 +532,14 @@ def GenerateMission(mission_name, template_path, template_name, date, msbin=True
       bombers_c = dict(json.loads(bombers_c.replace("'", "\"")))
       fighters_c = config['PLANES']['fighters_'+ side]
       fighters_c = dict(json.loads(fighters_c.replace("'", "\"")))
+      attackers_c = config['PLANES']['attackers_'+ side]
+      attackers_c = dict(json.loads(attackers_c.replace("'", "\"")))
       if scenario[side] == 1:
         plane_blue_c = config['MISSION']['fighter2_type_' + side]
         plane_blue = fighters_c[plane_blue_c]
+      elif scenario[side] == 3:
+        plane_blue_c = config['MISSION']['attacker_type_' + side]
+        plane_blue = attackers_c[plane_blue_c]
       else:
         plane_blue_c = config['MISSION']['bomber_type_' + side]
         plane_blue = bombers_c[plane_blue_c]
@@ -537,11 +548,10 @@ def GenerateMission(mission_name, template_path, template_name, date, msbin=True
       fighter_skill_c = config['MISSION']['fighter_skill_' + side]
       skill_red ={"rookie": "1" , "regular": "2", "veteran": "3"}[fighter_skill_c]
       mission_red_flight[side] = replace_substr( mission_red_flight[side], "AILevel = ", ";", skill_red, 0, False)
-    elif scenario[side] == 1:
-      plane_blue=fighters_all[side][random.randint(0, len(fighters_all[side])-1)]
-      plane_red=fighters_all[side][random.randint(0, len(fighters_all[side])-1)] 
-    elif scenario[side] == 2:  
-      if objective in objective_types_high:
+    else:
+      if scenario[side] == 1:
+        plane_blue=fighters_all[side][random.randint(0, len(fighters_all[side])-1)]
+      elif scenario[side] == 2:  
         plane_blue=bombers_all[side][random.randint(0, len(bombers_all[side])-1)]
       else:
         plane_blue=attackers_all[side][random.randint(0, len(attackers_all[side])-1)]
@@ -551,8 +561,8 @@ def GenerateMission(mission_name, template_path, template_name, date, msbin=True
 
     mission_blue_flight[side] = mission_blue_flight[side].replace(find_substr(mission_blue_flight[side], "WorldObjects\Planes\\", ".txt"), plane_blue)
     mission_red_flight[side] = mission_red_flight[side].replace(find_substr(mission_red_flight[side], "WorldObjects\Planes\\", ".txt"), plane_red)
-    payload_blue = str((plane_config_all[side][plane_blue])[payload_type][0])
-    mod = str((plane_config_all[side][plane_blue])[payload_type][1])
+    payload_blue = str((plane_config_all[plane_blue])[payload_type][0])
+    mod = str((plane_config_all[plane_blue])[payload_type][1])
     mission_blue_flight[side] = mission_blue_flight[side].replace("PayloadId = 0", "PayloadId = " + payload_blue)
     mission_blue_flight[side] = mission_blue_flight[side].replace("WMMask = 1", "WMMask = " + mod)
     
@@ -601,7 +611,6 @@ def GenerateMission(mission_name, template_path, template_name, date, msbin=True
         airfield_suffix = {"far from": "09", "close to": "11"}[config['MISSION']['start_location_' + side]]
     else:
       airfield_suffix = phase
-    print (month, phase, "helpers_airfield_" + side + "_" + airfield_suffix)
     helpers_airfield = find_group(mission_template, "helpers_airfield_" + side + "_" + airfield_suffix)
     T = get_coords( helpers_airfield, "wp_0")
     C_blue = get_coords( mission_blue_flight[side], "wp_0" )
@@ -672,7 +681,7 @@ def GenerateMission(mission_name, template_path, template_name, date, msbin=True
         icons.append(MCU_Icon(index, [0], icon_id, coals, n.x, n.z, lcname, lcdesc ))
         icon_pos += 10
 
-    if scenario[side] == 2:
+    if scenario[side] == 2 or scenario[side] == 3:
       wp_3 = get_coords( mission_objective[side], "primary_objective" )
       if objective_type in objective_types_low.keys():
         wp_3.y = float(cloud_level) - 100.000 - random.random()*150.000
@@ -681,7 +690,7 @@ def GenerateMission(mission_name, template_path, template_name, date, msbin=True
         wp_3.y = 2500.000 + random.random()*1000
         mission_blue_flight[side] = mission_blue_flight[side].replace("AttackGround = 0", "AttackGround = 1")
       wp_0 = get_coords( mission_blue_flight[side], "wp_0" )
-      wp_1 = Position(wp_0.x-random.randint(2000,6000)*(wp_3-wp_0).norm().x, wp_0.y, wp_0.z+(5000*(wp_3-wp_0).norm().z))
+      wp_1 = Position(wp_0.x-random.randint(2000,5000)*(wp_3-wp_0).norm().x, wp_0.y, wp_0.z+(5000*(wp_3-wp_0).norm().z))
       wp_2 = Position(wp_3.x-(4000*(wp_3-wp_0).norm().x), wp_3.y, wp_3.z-random.randint(1000,3000)*(wp_3-wp_0).norm().z )
       wp_4 = Position(wp_3.x+random.randint(1000,4000)*(wp_3-wp_0).norm().x, wp_3.y, wp_3.z-(6000*(wp_3-wp_0).norm().z))
       wp_5 = Position(wp_0.x+(3000*(wp_3-wp_0).norm().x), wp_0.y, wp_0.z+random.randint(2000,5000)*(wp_3-wp_0).norm().z)
