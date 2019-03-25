@@ -1,0 +1,110 @@
+
+Bugs:\
+-Blue flight never leaves wp_0-> eventually does. After climbing to > 800 Why? wp size?
+-FLy into mountain: perhaps wait a little longer before going to WP_0???
+
+
+Change log: 
+-Fixed Red flight would not cover Blue flight when doing ground attack mission
+
+Backlog:
+-Add single player option: 
+--As a player I want to select which plane I'll be flying.
+--Determine correct player plane
+--Mission briefing ??
+
+-Make waypoints Icons better: position x,y dependent on next waypoint
+-Stalingrad capponniers add entity/faction (zombies)
+-Add Ju52 as option, but need weight implemented in random choice
+Rewrite plane config with proper key????
+
+first step: Read map specific plane config in json once
+-use list().values for selecting random planes
+-use dict for reading selected plane from config.
+
+Or completely rewrite GUI. Use key, show value in button.
+
+plane config:
+ plane id, name, [role1, role2], [attack config, attack mod], [bomber config, bomber mod], weight?
+
+-Implement "weight" while choosing planes, include "historical"
+-implement radar function 
+
+-Potential Objectives: Convoy, Factory, Harbour, Tank, Garrison, Coms Tower, Supply Ships, 
+Stronghold, Submarine pen, Air support for ground assault, Invasion (protect your own airfield)
+
+-enhance mission description/ more random phrases?
+
+##############
+DIST:
+
+pyinstaller -F -w CoopGenerator.py
+
+pyinstaller -F -c GenerateBatch.py
+
+###############
+
+-Support multiple front lines/situations (based on date/time progression):
+
+Objectives can be created inside "phase/ line" group and then added to default objective group before selecting one.
+Or: put phase number in objective name, ie " objective_allied_<phase mask>_1 inside "Objective_train".
+Mask should provide if yes/no allowed in selected phase: "00001" = allowed in phase 5, "00110", allowed in phase 3 and 4. 
+
+-Create multiple groups phase_1 to phase_n
+-Each phase contains: Player flights (start airfields), Lines (icons+influence areas), helpers, objectives
+-Is this all in one template??????? Or do we choose different template? -> easier to keep generic stuff in one template (scenery/logic)
+
+-Add own mission name -> why???
+
+
+-Radio: warning for fighters
+-call backup?
+
+###############################
+-Generate new mission during lobby timeout? -> Poll rcon?
+
+-data hiding: which global variables are used in functions? -> the mission/template files
+
+Design:
+
+choose day/time
+choose weather
+
+choose map/lines
+choose situation (offensive/defensive)
+
+Choose operations area
+
+Read static objects
+Read active objects and cluster around operations area (vehicles, aaa etc)
+
+per side:
+
+   choose objective / restrict objective locations based on lines
+
+   choose type of flights / depends on objective & situation
+   per flight:
+      choose objective.task
+      choose plane types based on task
+      choose loadout based on task
+      choose timing: air start/ground start (start/in progress/returning)
+      choose waypoints / restrict wp locations based on objective
+
+Define function get block:
+   Find block and isolate as one text block without leading tabs
+
+Define function get group:
+   Find all blocks in group and get them
+
+Define function save block
+   Add block to total mission file (no groups except for static)
+
+Define function move group
+   Transform xyz cords of all blocks based on transformation vector. One object for reference.
+   
+What structure to use to store and group blocks so they can be used for transformations -> List of Block object
+
+Objects:
+Plane: standard+type, loadout etc
+Standard block: x,y,z
+
