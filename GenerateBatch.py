@@ -11,16 +11,19 @@ import configparser
 config = configparser.ConfigParser()
 config.read('config.ini')
 il2_path = config['DEFAULT']['il2_path']
-map_name = "Kuban"
-#mission_prefix = "CoopStalingrad_"
-mission_prefix = "CoopKuban_"
+mission_prefix = "CoopGenerated_"
 template_path = config['DEFAULT']['template_path']
-msbin = {"0": False, "1": True}[config['DEFAULT']['create_msbin']]
 config['MISSION']['side'] = "0"
 config['MISSION']['weather'] = "0"
 config['MISSION']['intercept_chance_axis'] = "high"
 config['MISSION']['intercept_chance_allied'] = "high"
 config['MISSION']['plane_start'] = "runway"
+config['MISSION']['fighter_count_allied'] = "4"
+config['MISSION']['fighter2_count_allied'] = "4"
+config['MISSION']['bomber_count_allied'] = "4"
+config['MISSION']['fighter_count_axis'] = "4"
+config['MISSION']['fighter2_count_axis'] = "4"
+config['MISSION']['bomber_count_axis'] = "4"
 for side in ["allied", "axis"]:
     config['MISSION']['scenario_' + side] = "0"
 with open("config.ini", "w" ) as configfile:
@@ -32,7 +35,7 @@ for month in [9,10,11,12]:
         date_new = "%02d" %date + "." + "%02d" %month + ".1942"
         print("Generating mission for: "+date_new)
         if i<10:
-            MissionConstructor.GenerateMission(mission_prefix + "0"+ str(i), template_path, map_name, date_new, msbin)
+            MissionConstructor.GenerateMission(mission_prefix + "0"+ str(i), template_path, date_new)
         else:
-            MissionConstructor.GenerateMission(mission_prefix + str(i), template_path, map_name, date_new, msbin)
+            MissionConstructor.GenerateMission(mission_prefix + str(i), template_path, date_new)
         i += 1

@@ -10,7 +10,7 @@ from Position import Position
 from Block import Block
 from MCU_Icon import MCU_Icon
 
-def GenerateMission(mission_name, template_path, map, date, msbin=True):
+def GenerateMission(mission_name, template_path, date):
 
     # Function to return a group in a mission file based on the group Name
   def find_group( s, name ):
@@ -189,6 +189,8 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
         mission_fighters = replace_substr(mission_fighters, "XPos = ", ";", x, mission_fighters.find("Area_"+str(n+1)))
         mission_fighters = replace_substr(mission_fighters, "YPos = ", ";", y, mission_fighters.find("Area_"+str(n+1)))
         mission_fighters = replace_substr(mission_fighters, "ZPos = ", ";", z, mission_fighters.find("Area_"+str(n+1)))
+      if season == "winter":
+        mission_fighters = mission_fighters.replace("Skin = \"\"", "Skin = \"" + fighter + "\\"+ fighter + "_skin_01.dds\"") 
       fighters += mission_fighters
     return fighters
 
@@ -219,8 +221,9 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
   il2_path = config['DEFAULT']['il2_path']
   coop_path = il2_path + "\\data\\Multiplayer\\Cooperative\\"
   single_path = il2_path + "\\data\Missions\\"
-
-  mission_description="This is a test mission to test the mission generator.<br><br>Your primary mission is to destroy the target marked on the map. Good luck!"
+  msbin = {"0": False, "1": True}[config['DEFAULT']['create_msbin']]
+  no_mission = {"0": False, "1": True}[config['DEFAULT']['no_mission']]
+  mission_description="Default description"
   mission_author="Vander"
   mission_header="# Mission File Version = 1.0;\n\n"
   mission_footer="\n# end of file"
@@ -266,7 +269,7 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
     "axis": attackers_axis
   }
 
-  # plane cfg [0:name, 1:attack cfg[payload, mod], 2:bomber cfg[payload, mod], 3:weight (not implemented)]
+  # plane cfg [0:name, 1:attack cfg[payload, mod], 2:bomber cfg[payload, mod], 3:distribution weight (not implemented)]
   plane_config_allied={
     "a20b": ["A-20B", [1,1], [2,1], 2 ],
     "u2vs": ["U-2 vs", [14,100000001], [5,1001], 2 ],
@@ -293,7 +296,7 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
     "ju87d3": ["Ju 87 D-3", [5,11], [4,1], 3 ],
     "he111h6": ["He 111 H-6", [0,111], [3,1], 2 ],
     "he111h16": ["He 111 H-16", [3,1], [4,1], 2 ],
-    "ju88a4": ["Ju 88 A-4", [2,1], [1,11], 3 ],
+    "ju88a4": ["Ju 88 A-4", [2,1], [0,1], 3 ],
     "hs129b2": ["Hs 129 B-2", [16,10001], [4,1], 1 ],
     "bf110e2": ["Bf 110 E-2", [3,1001], [4,10001], 2 ],
     "bf110g2": ["Bf 110 G-2", [2,1], [4,1001], 2 ], 
@@ -306,7 +309,7 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
     "bf109k4": ["Bf 109 K-4", [1,101], [2,1001], 1 ],
     "fw190a3": ["Fw 190 A-3", [2,101], [3,1001], 2 ],
     "mc202s8": ["MC.202 Series VIII" ,[0,1], [0,1], 1 ],
-    "fw190a5": ["Fw 190 A-5", [8, 10101], [3, 1001], 2 ],
+    "fw190a5": ["Fw 190 A-5", [8, 1000101], [3, 1001], 2 ],
     "fw190a8": ["Fw 190 A-8", [35, 1100001], [35, 1100001], 3 ],
     "fw190d9": ["Fw 190 D-9", [1, 10000011], [3, 10001001], 1 ],
     "ju523mg4e": ["Ju 52/Зm", [1, 10101], [1, 10101], 2 ]
@@ -349,7 +352,9 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
     mission_options = mission_options.replace("stalingrad-summer-1942", "stalingrad-1942")
     mission_options = mission_options.replace("LANDSCAPE_Kuban_s", "LANDSCAPE_Kuban_a")
     mission_options = mission_options.replace("kuban-summer", "kuban-autumn")
-    if mission_map == "Stalingrad":
+    mission_options = mission_options.replace("LANDSCAPE_Moscow_a", "LANDSCAPE_Moscow_w")
+    mission_options = mission_options.replace("moscow-autumn", "moscow-winter")
+    if mission_map in ["Stalingrad","Moscow"]:
       season = "winter"
       mission_options = mission_options.replace("SeasonPrefix = \"su\"", "SeasonPrefix = \"wi\"")
   mission_options = replace_substr(mission_options, "Date = ", ";" , date_new)
@@ -403,7 +408,6 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
 
   frontlines = dict(json.loads(config[mission_map]['lines']))
   phase = frontlines[month]
-  print ("PHASE: ", phase)
   mission_lines = find_group(mission_template, "Lines_"+ phase)
 
   #
@@ -472,7 +476,12 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
     # Select random number of transports
     transports = random.sample(range(transport_groups.count("transport_" + side)),5)
     for i in transports:
-      mission_transports += find_group( transport_groups, "transport_" + side +"_" + str(i+1))
+      transport_group = find_group( transport_groups, "transport_" + side +"_" + str(i+1))
+      if season == "winter":
+        st = transport_group.find("ship_timer")
+        transport_group = replace_substr(transport_group, "Random = ", ";", "0", st)
+      mission_transports += transport_group
+
 
     # Determine objective type
     if random_config[side]:
@@ -601,6 +610,12 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
 
     mission_blue_flight[side] = mission_blue_flight[side].replace(find_substr(mission_blue_flight[side], "WorldObjects\Planes\\", ".txt"), plane_blue)
     mission_red_flight[side] = mission_red_flight[side].replace(find_substr(mission_red_flight[side], "WorldObjects\Planes\\", ".txt"), plane_red)
+    
+    # Winter skins
+    if season == "winter":
+      mission_blue_flight[side] = mission_blue_flight[side].replace("Skin = \"\"", "Skin = \"" + plane_blue + "\\"+ plane_blue + "_skin_01.dds\"")
+      mission_red_flight[side] = mission_red_flight[side].replace("Skin = \"\"", "Skin = \"" + plane_red + "\\"+ plane_red + "_skin_01.dds\"")
+    
     if scenario[side] != 1:
       payload_blue = str((plane_config_all[plane_blue])[payload_type][0])
       mod = str((plane_config_all[plane_blue])[payload_type][1])
@@ -608,7 +623,6 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
       mission_blue_flight[side] = mission_blue_flight[side].replace("WMMask = 1", "WMMask = " + mod)
     
     # Single sided or double sided? 
-    
     if (side == "allied" and side_c == 2) or (side == "axis" and side_c == 1):
       mission_blue_flight[side] = mission_blue_flight[side].replace("CoopStart = 1", "CoopStart = 0")
       mission_red_flight[side] = mission_red_flight[side].replace("CoopStart = 1", "CoopStart = 0")
@@ -646,15 +660,16 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
 
     # Coop or Single Player?
     if game_type == "single":
+      mission_path = single_path
       mission_blue_flight[side] = mission_blue_flight[side].replace("CoopStart = 1", "CoopStart = 0")
       mission_red_flight[side] = mission_red_flight[side].replace("CoopStart = 1", "CoopStart = 0")
       if (side == "allied" and side_c == 1) or (side == "axis" and side_c == 2):
-          player_plane = {"Blue leader": "Blue 1", "Blue wingman": "Blue 2", "Red leader": "Red 1", "Red wingman": "Red 2"}[player_slot]
+          player_plane = {"Blue leader": "Blue 1", "Blue wingman": "Blue 2", "Blue rear": "Blue " + str(bomber_count[side]), "Red leader": "Red 1", "Red wingman": "Red 2", "Red rear": "Red " + str(fighter_count[side])}[player_slot]
           flight_colour = player_plane.split(" ")[0]
           flight_pos = player_plane.split(" ")[1]
-          if flight_colour == "Blue" and flight_pos == "2" and bomber_count[side] < 2:
+          if flight_colour == "Blue" and bomber_count[side] < 2:
             player_plane = "Blue 1"
-          if flight_colour == "Red" and flight_pos == "2" and fighter_count[side] < 2:
+          if flight_colour == "Red" and fighter_count[side] < 2:
             if fighter_count[side] == 0:
               player_plane = "Blue 1"
             else:
@@ -665,17 +680,16 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
           st = mission_red_flight[side].find(player_plane)
           if st > 0:
             mission_red_flight[side] = replace_substr( mission_red_flight[side], "AILevel = ", ";", "0", st)
-          mission_name = "SYN_Generated_Single" # Needs to be configurable as well
-          mission_path = single_path
+          print("Player plane: ", player_plane)
     else:
       mission_path = coop_path
-  
+
     # Move airfield
     if not random_config[side]:
       if side == "allied":
-        airfield_suffix = {"far from": "11", "close to": "09"}[config['MISSION']['start_location_' + side]]
+        airfield_suffix = {"far from": "11", "not far behind": "10", "close to": "09"}[config['MISSION']['start_location_' + side]]
       if side == "axis":
-        airfield_suffix = {"far from": "09", "close to": "11"}[config['MISSION']['start_location_' + side]]
+        airfield_suffix = {"far from": "09", "not far behind": "10", "close to": "11"}[config['MISSION']['start_location_' + side]]
     else:
       airfield_suffix = phase
     helpers_airfield = find_group(mission_template, "helpers_airfield_" + side + "_" + airfield_suffix)
@@ -794,10 +808,10 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
         wp_3.y = 2500.000 + random.random()*1000
         mission_blue_flight[side] = mission_blue_flight[side].replace("AttackGround = 0", "AttackGround = 1")
       wp_0 = get_coords( mission_blue_flight[side], "wp_0" )
-      wp_1 = Position(wp_0.x-random.randint(2000,5000)*(wp_3-wp_0).norm().x, wp_0.y, wp_0.z+(5000*(wp_3-wp_0).norm().z))
-      wp_2 = Position(wp_3.x-(4000*(wp_3-wp_0).norm().x), wp_3.y, wp_3.z-random.randint(1000,3000)*(wp_3-wp_0).norm().z )
-      wp_4 = Position(wp_3.x+random.randint(1000,4000)*(wp_3-wp_0).norm().x, wp_3.y, wp_3.z-(6000*(wp_3-wp_0).norm().z))
-      wp_5 = Position(wp_0.x+(3000*(wp_3-wp_0).norm().x), wp_0.y, wp_0.z+random.randint(2000,5000)*(wp_3-wp_0).norm().z)
+      wp_1 = Position(wp_0.x-random.randint(2000,5000)*(wp_3-wp_0).norm().x, wp_0.y, wp_0.z+(random.randint(3000,6000)*(wp_3-wp_0).norm().z))
+      wp_2 = Position(wp_3.x-(random.randint(3000,6000)*(wp_3-wp_0).norm().x), wp_3.y, wp_3.z-random.randint(3000,5000)*(wp_3-wp_0).norm().z )
+      wp_4 = Position(wp_3.x+random.randint(3000,5000)*(wp_3-wp_0).norm().x, wp_3.y, wp_3.z-(random.randint(5000,7500)*(wp_3-wp_0).norm().z))
+      wp_5 = Position(wp_0.x+(random.randint(2000,5000)*(wp_3-wp_0).norm().x), wp_0.y, wp_0.z+random.randint(2000,5000)*(wp_3-wp_0).norm().z)
       waypoints = [wp_0, wp_1, wp_2, wp_3, wp_4, wp_5]
       icon_pos = 0
       icons=[]
@@ -919,8 +933,13 @@ def GenerateMission(mission_name, template_path, map, date, msbin=True):
   if msbin:
     resaver_path = il2_path + "\\bin\\resaver"
     command_line = "MissionResaver.exe -t -d \"" + il2_path + "\\data" + "\" -f \"" + mission_path + mission_name + ".mission\"\n"
-    #print(resaver_path)
+    print (command_line)
     subprocess.run(command_line, cwd=resaver_path, shell=True)
+
+  if no_mission:
+    command_line = "del \"" + mission_path + mission_name + ".mission\""
+    print (command_line)
+    subprocess.run(command_line, shell=True)
 
 #
 # Main
@@ -930,9 +949,5 @@ if __name__ == "__main__":
   # Create random date mission
   month = "%02d" % random.randint(1,12)
   date = "%02d" % random.randint(1, 30) + "." + month + ".1942"
-  config = configparser.ConfigParser()
-  config.read('config.ini')
-  msbin = {"0": False, "1": True}[config['DEFAULT']['create_msbin']]
   template_path="C:/Program Files (x86)/1C Game Studios/IL-2 Sturmovik Battle of Stalingrad/data/Multiplayer/Cooperative/"
-  mission_name = "CoopStalingrad_01"
-  GenerateMission("CoopStalingrad_01", template_path, "Stalingrad", date, msbin)
+  GenerateMission("SYN_Generated", template_path, "Moscow", date)
